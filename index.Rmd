@@ -1,0 +1,293 @@
+---
+output: 
+  html_notebook:
+    theme: yeti
+---
+```{r, include=FALSE}
+htmltools::tagList(rmarkdown::html_dependency_font_awesome())
+```
+
+
+
+
+<head>
+<button type="button" class="btn btn-primary btn-lg btn-block"><h1><b><i class="fab fa-github"></i> TAREA 5</b></h1></button>
+<br>
+<div class="alert alert-dismissible alert-info">
+  <button type="button" class="close" data-dismiss="alert">&times;</button>
+  <strong>Alumna:</strong> Nicole Muñoz <br>
+  <strong>Profesor:</strong> Víctor Macías <br>
+  <strong>Ayudante:</strong> Gabriel Cabrera <br>
+  
+</div>
+</head>
+
+
+# <a href="#"><i class="fas fa-question-circle"></i><b> Pregunta 2</b></a>{.tabset}
+
+
+<i class="fas fa-book"></i> Librarías
+-------------
+```{r}
+library(quantmod)
+library(dplyr)
+library(plotly)
+library(gridExtra)
+library(tidyverse)
+library(tidyquant)
+library(forcats)
+library(devtools)
+```
+
+
+
+<i class="fas fa-code"></i> Función
+-------------
+
+```{r}
+acciones <- c("AAPL","MSFT")
+data <- tq_get(acciones,
+               get = "stock.prices",
+               from = "2000-01-01",
+               to  = "2018-08-30",
+               periodicity = "monthly")
+data <- data.frame(data$symbol, data$date, data$close)
+data <- data%>%rename(accion=data.symbol,
+                      fecha=data.date,
+                      precio=data.close)
+finance = function(x,return=c('yes','no'),plot=c('type 1','type 2'),normal=c('yes','no')){
+  
+  #retornos log
+  if (return=='yes'){
+    retornoslog <- x %>%
+      group_by(accion) %>%
+      tq_transmute(select = precio,
+                   mutate_fun = periodReturn,
+                   period = "monthly",
+                   type = "log",
+                   col_rename = "retornos")
+    dataA <- subset(retornoslog, accion=="AAPL")
+    dataM <- subset(retornoslog, accion=="MSFT")
+    dataA <- dataA %>% mutate(retcumA = cumsum(retornos))
+    dataM <- dataM %>% mutate(retcumM = cumsum(retornos)) 
+    
+    #grafico 11:retornos log
+    ifelse(plot=='type 1',
+           g11 <- plot_ly(dataA, x = ~fecha) %>%
+             add_lines(y = ~dataA$retornos, name = "APPLE", line = list(color = 'rgb(19,135,171)', width = 2)) %>% 
+             add_lines(y = ~dataM$retornos, name = "MICROSOFT", line = list(color = 'rgb(153,171,254)', width = 2)) %>%
+             layout(
+               title = "RETORNOS (logarítmicos) APPLE & MICROSOFT",
+               xaxis = list(
+                 rangeselector = list(
+                   buttons = list(
+                     list(
+                       count = 3,
+                       label = "3 mo",
+                       step = "month",
+                       stepmode = "backward"),
+                     list(
+                       count = 6,
+                       label = "6 mo",
+                       step = "month",
+                       stepmode = "backward"),
+                     list(
+                       count = 1,
+                       label = "1 yr",
+                       step = "year",
+                       stepmode = "backward"),
+                     list(
+                       count = 1,
+                       label = "YTD",
+                       step = "year",
+                       stepmode = "todate"),
+                     list(step = "all"))),
+                 
+                 rangeslider = list(type = "Fecha")),
+               yaxis = list(title = "Retornos")),
+           
+           ifelse(
+             plot=='type 2',
+                  g12 <- plot_ly(dataA, x = ~fecha) %>%
+                    add_lines(y = ~dataA$retcumA, name = "APPLE", line = list(color = 'rgb(19,135,171)', width = 2)) %>% 
+                    add_lines(y = ~dataM$retcumM, name = "MICROSOFT", line = list(color = 'rgb(153,171,254)', width = 2)) %>%
+                    layout(
+                      title = "RETORNOS ACUMULADOS (logarítmicos) APPLE & MICROSOFT",
+                      xaxis = list(
+                        rangeselector = list(
+                          buttons = list(
+                            list(
+                              count = 3,
+                              label = "3 mo",
+                              step = "month",
+                              stepmode = "backward"),
+                            list(
+                              count = 6,
+                              label = "6 mo",
+                              step = "month",
+                              stepmode = "backward"),
+                            list(
+                              count = 1,
+                              label = "1 yr",
+                              step = "year",
+                              stepmode = "backward"),
+                            list(
+                              count = 1,
+                              label = "YTD",
+                              step = "year",
+                              stepmode = "todate"),
+                            list(step = "all"))),
+                        
+                        rangeslider = list(type = "Fecha")),
+                      
+                      yaxis = list(title = "Retornos"))
+           )#ifelse dentro de los graficos
+    )#fin ifelse graficos 
+  
+    jlog = by(retornoslog,retornoslog$accion,
+              function(x){
+                n=length(x$retornos)
+                mean = sum(x$retornos)/n
+                skewness = ((sum(x$retornos-mean)^3)/n)/((sum(x$retornos-mean)^2)/n)^(3/2)
+                kurtosis = ((sum(x$retornos-mean)^4)/n)/((sum(x$retornos-mean)^2)/n)^2
+                JB = n*(((skewness^2)/6)+(((kurtosis-3)^2)/24))
+                j = paste('p-value =',1 - pchisq(JB,df = 2),ifelse(1 - pchisq(JB,df = 2)<0.05,
+                                                                   ', se rechaza la hipotesis nula de normalidad para los retornos de Apple',
+                                                                   ', no se rechaza la hipotesis nula de normalidad para los retornos de Microsoft'))})
+    }#fin primer if si return=yes
+  #retornos aritmeticos
+  else if (return=='no'){
+    retornosimple <- x %>% 
+      group_by(accion) %>%
+      tq_transmute(select = precio,
+                 mutate_fun = periodReturn,
+                 period = "monthly",
+                 type = "arithmetic",
+                 col_rename = "retornos")
+    dataA1 <- subset(retornosimple, accion=="AAPL")
+    dataM1 <- subset(retornosimple, accion=="MSFT")
+    dataA1 <- dataA1 %>% mutate(retcumA = cumsum(retornos))
+    dataM1 <- dataM1 %>% mutate(retcumM = cumsum(retornos))
+    
+    
+    ifelse(plot=='type 1',
+           g21 <- plot_ly(dataA1, x = ~fecha) %>%
+             add_lines(y = ~dataA1$retornos, name = "APPLE", line = list(color = 'rgb(19,135,171)', width = 2)) %>% 
+             add_lines(y = ~dataM1$retornos, name = "MICROSOFT", line = list(color = 'rgb(153,171,254)', width = 2)) %>%
+             layout(
+               title = "RETORNOS (aritméticos) APPLE & MICROSOFT",
+               xaxis = list(
+                 rangeselector = list(
+                   buttons = list(
+                     list(
+                       count = 3,
+                       label = "3 mo",
+                       step = "month",
+                       stepmode = "backward"),
+                     list(
+                       count = 6,
+                       label = "6 mo",
+                       step = "month",
+                       stepmode = "backward"),
+                     list(
+                       count = 1,
+                       label = "1 yr",
+                       step = "year",
+                       stepmode = "backward"),
+                     list(
+                       count = 1,
+                       label = "YTD",
+                       step = "year",
+                       stepmode = "todate"),
+                     list(step = "all"))),
+                 
+                 rangeslider = list(type = "Fecha")),
+               
+               yaxis = list(title = "Retornos")),
+           ifelse(plot=='type 2',
+                  g22 <- plot_ly(dataA1, x = ~fecha) %>%
+                    add_lines(y = ~dataA1$retcumA, name = "APPLE", line = list(color = 'rgb(19,135,171)', width = 2)) %>% 
+                    add_lines(y = ~dataM1$retcumM, name = "MICROSOFT", line = list(color = 'rgb(153,171,254)', width = 2)) %>%
+                    layout(
+                      title = "RETORNOS ACUMULADOS (aritméticos) APPLE & MICROSOFT",
+                      xaxis = list(
+                        rangeselector = list(
+                          buttons = list(
+                            list(
+                              count = 3,
+                              label = "3 mo",
+                              step = "month",
+                              stepmode = "backward"),
+                            list(
+                              count = 6,
+                              label = "6 mo",
+                              step = "month",
+                              stepmode = "backward"),
+                            list(
+                              count = 1,
+                              label = "1 yr",
+                              step = "year",
+                              stepmode = "backward"),
+                            list(
+                              count = 1,
+                              label = "YTD",
+                              step = "year",
+                              stepmode = "todate"),
+                            list(step = "all"))),
+                        
+                        rangeslider = list(type = "Fecha")),
+                      
+                      yaxis = list(title = "Retornos"))
+                  )#fin ifelse grafico tipo 2
+           ) #fin primer ifelse grafico tipo 1
+    
+    j_arit= by(retornosimple,retornosimple$accion,
+               function(x){
+                 n=length(x$retornos)
+                 mean = sum(x$retornos)/n
+                 skewness = ((sum(x$retornos-mean)^3)/n)/((sum(x$retornos-mean)^2)/n)^(3/2)
+                 kurtosis = ((sum(x$retornos-mean)^4)/n)/((sum(x$retornos-mean)^2)/n)^2
+                 JB = n*(((skewness^2)/6)+(((kurtosis-3)^2)/24))
+                 j = paste('p-value =',1 - pchisq(JB,df = 2),
+                           ifelse(1 - pchisq(JB,df = 2)<0.05,
+                                  ', se rechaza la hipotesis nula de normalidad para los retornos de Apple',
+                                  ', no se rechaza la hipotesis nula de normalidad para los retornos de Microsoft'))})
+    }#fin else if retornos=no
+  
+  #debemos general el resultado normal==no y dado que en ambos casos se realiza el test, programamos la salida:
+  no="Se realizó test de Normalidad, ocultando su resultado"
+  
+  #debemos generar todas las posibles salidas
+  ifelse(return=="yes"& plot=='type 1' & normal=="yes",return(list(g11,jlog)),
+         ifelse(return=='yes' & plot=='type 2' & normal=="yes",return(list(g12,jlog)),
+                ifelse(return=='yes' & plot=='type 1' & normal=="no",return(list(g11,no)),
+                       ifelse(return=='yes' & plot=='type 2' & normal=="no",return(list(g12,no)),
+                              ifelse(return=='no' & plot=='type 1' & normal=="yes",return(list(g21,j_arit)),
+                                     ifelse(return=='no' & plot=='type 2' & normal=="yes",return(list(g22,j_arit)),
+                                            ifelse(return=='no' & plot=='type 1' & normal=="no",return(list(g21,no)),
+                                                   ifelse(return=='no' & plot=='type 2' & normal=="no",return(list(g22,no))))))))
+                
+         ))
+  
+  
+  }#fin funcion
+```
+
+
+
+
+<i class="fas fa-chart-line"></i> Resultados
+--------------
+```{r fig.asp=0.5, fig.height=15, fig.width=10}
+finance(data,"yes","type 1","yes")
+finance(data,"no","type 1","yes")
+finance(data, "yes", "type 2", "yes")
+finance(data, "no", "type 2", "yes")
+```
+
+
+
+# <a href="#"><i class="fas fa-question-circle"></i> <b>Pregunta 3</b></a>{.tabset - .tabset-fade}
+
+
+--------------
