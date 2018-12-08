@@ -37,6 +37,7 @@ library(tidyverse)
 library(tidyquant)
 library(forcats)
 library(devtools)
+library(ggplot2)
 ```
 
 
@@ -289,5 +290,247 @@ finance(data, "no", "type 2", "yes")
 
 # <a href="#"><i class="fas fa-question-circle"></i> <b>Pregunta 3</b></a>{.tabset - .tabset-fade}
 
-
+Modelo Var. Omitida
 --------------
+```{r}
+set.seed(123)
+reps= 10000
+betas.ses= matrix(NA, nrow=reps, ncol=4)
+beta0=2
+beta1=2.5
+beta2=1
+
+su=1 #normalidad
+n=c(50,100,500,1000)
+
+for (j in 1:length(n)) {
+  x1 = rnorm(n[j],20,1)
+  x21 = (0.8*x1) + rnorm(n[j],0,1) #var omitida: modelo sesgado
+  
+  for(i in 1:reps) {
+    u=rnorm(n[j], 0,su)
+    v = beta2*x21 + u
+    
+    Y0 = beta0 + beta1*x1 + v  #modelo con var omitida
+    
+    model0 = lm(Y0 ~ x1)  #modelo sesgado
+    betas.ses[i,j] = model0$coef[2] #b1 del modelo var omitida
+
+  }
+}
+
+betas_sesgados = data.frame(betas.ses)
+
+```
+
+```{r}
+
+##Calculando Esperanza, Varianza y Sesgo
+#para n=50
+e50.b1 = mean(betas.ses[,1])
+v50.b1 = var(betas.ses[,1])
+s50.b1=abs(mean(betas.ses[,1])-beta1)
+
+#para n=100
+e100.b1 = mean(betas.ses[,2])
+v100.b1 = var(betas.ses[,2])
+s100.b1=abs(mean(betas.ses[,2])-beta1)
+
+#para n=500
+e500.b1 = mean(betas.ses[,3])
+v500.b1 = var(betas.ses[,3])
+s500.b1=abs(mean(betas.ses[,3])-beta1)
+
+#para n=1000
+e1000.b1 = mean(betas.ses[,4])
+v1000.b1 = var(betas.ses[,4])
+s1000.b1=abs(mean(betas.ses[,4])-beta1)
+
+b1.s <- data.frame("Tamaño"=c(n),
+                   "Parámetro"=c("Beta1","Beta1","Beta1","Beta1"),
+                   "Esperanza"=c(e50.b1, e100.b1, e500.b1, e1000.b1),
+                   "Varianza"= c(v50.b1, v100.b1, v500.b1, v1000.b1),
+                   "Sesgo"= c(s50.b1, s100.b1, s500.b1, s1000.b1))
+
+print(b1.s)
+
+```
+
+
+
+
+
+```{r}
+p1.50 = ggplot(betas_sesgados) + 
+  geom_histogram(aes(betas_sesgados[,1],y=..density..), col="#103c57", fill="#3278a2", bins = 30) +
+  stat_function(fun = dnorm, args = list(mean=mean(betas_sesgados[,1]), sd=sd(betas_sesgados[,1])),
+                geom = "line", color="#958efb", size=1) +
+  ylab("Densidad (n=50)") + ggtitle("Distribución Beta 1 (n=50)") +xlab(beta1) + 
+  theme_bw()
+
+p1.50 <- ggplotly(p1.50)
+```
+
+```{r}
+p1.100 = ggplot(betas_sesgados) + 
+  geom_histogram(aes(betas_sesgados[,2],y=..density..), col="#103c57", fill="#3278a2", bins = 30) +
+  stat_function(fun = dnorm, args = list(mean=mean(betas_sesgados[,2]), sd=sd(betas_sesgados[,2])),
+                geom = "line", color="#958efb", size=1) +
+  ylab("Densidad (n=100)") + ggtitle("Distribución Beta 1 (n=100)") +xlab(beta1) +
+  theme_bw()
+
+p1.100 <- ggplotly(p1.100)
+```
+
+```{r}
+p1.500 = ggplot(betas_sesgados) + 
+  geom_histogram(aes(betas_sesgados[,3],y=..density..), col="#103c57", fill="#3278a2", bins = 30) +
+  stat_function(fun = dnorm, args = list(mean=mean(betas_sesgados[,3]), sd=sd(betas_sesgados[,3])),
+                geom = "line", color="#958efb", size=1) +
+  ylab("Densidad (n=500)") + ggtitle("Distribución Beta 1 (n=500)") +xlab(beta1) +
+  theme_bw()
+
+p1.500 <- ggplotly(p1.500)
+```
+
+```{r}
+p1.1000 = ggplot(betas_sesgados) + 
+  geom_histogram(aes(betas_sesgados[,4],y=..density..), col="#103c57", fill="#3278a2", bins = 30) +
+  stat_function(fun = dnorm, args = list(mean=mean(betas_sesgados[,4]), sd=sd(betas_sesgados[,4])),
+                geom = "line", color="#958efb", size=1) +
+  ylab("Densidad (n=1000)") + ggtitle("Distribución Beta 1") +xlab(beta1) +
+  theme_bw()
+
+p1.1000 <- ggplotly(p1.1000)
+```
+
+```{r fig.asp=0.5, fig.height=15, fig.width=10}
+g1<- subplot(p1.50,p1.100,p1.500,p1.1000, nrows = 2, margin = 0.12, heights = c(0.5, 0.5), titleX= TRUE, titleY = TRUE)
+g1
+```
+
+Podemos observar en resueltados anteriores que sí existe sesgo en b1. Con respecto a la tendencia del sesgo a medida que se aumenta el tamaño muestral, se observa que no tiene una trayectoria definida, es decir, éste no disminuye a medida que aumentamos la muestra. Podríamos inferir, entonces, que no es posible solucionar el problema de la variable omitida aumentando el tamaño muestral. Los gráficos demuestran el mismo comportamiento, se observa la lejanía del promedio poblacional 2.5 para cada tamaño muestral.
+
+Una hipótesis interesante es: si el sesgo desaparece si incluimos la variable que se omitió. Los resultados se observan en la siguiente sección.
+
+
+
+
+Modelo Poblacional
+--------------
+
+```{r}
+set.seed(123)
+reps= 10000
+betas.pobl= matrix(NA, nrow=reps, ncol=4)
+beta0=2
+beta1=2.5
+beta2=1
+
+
+su=1 #normalidad
+n=c(50,100,500,1000)
+
+for (j in 1:length(n)) {
+  x1 = rnorm(n[j],20,1)
+  x22 = runif(n[j],0,1) #x2 del modelo poblacional (real)
+  
+  for(i in 1:reps) {
+    u=rnorm(n[j], 0,su)
+    
+    Y1 = beta0 + beta1*x1 + beta2*x22 + u  #modelo poblacional real
+
+    model1 = lm(Y1 ~ x1 + x22) #modelo poblacional
+    betas.pobl[i,j] = model1$coef[2] #b1 del modelo poblacional
+  }
+}
+
+betas_pobl = data.frame(betas.pobl)
+```
+
+```{r}
+##Calculando Esperanza, Varianza y Sesgo
+#para n=50
+e50.b12 = mean(betas_pobl[,1])
+v50.b12 = var(betas_pobl[,1])
+s50.b12=abs(mean(betas_pobl[,1])-beta1)
+
+#para n=100
+e100.b12 = mean(betas_pobl[,2])
+v100.b12 = var(betas_pobl[,2])
+s100.b12=abs(mean(betas_pobl[,2])-beta1)
+
+#para n=500
+e500.b12 = mean(betas_pobl[,3])
+v500.b12 = var(betas_pobl[,3])
+s500.b12=abs(mean(betas_pobl[,3])-beta1)
+
+#para n=1000
+e1000.b12 = mean(betas_pobl[,4])
+v1000.b12 = var(betas_pobl[,4])
+s1000.b12=abs(mean(betas_pobl[,4])-beta1)
+
+b1.p <- data.frame("Tamaño"=c(n),
+                   "Parámetro"=c("Beta1","Beta1","Beta1","Beta1"),
+                   "Esperanza"=c(e50.b12, e100.b12, e500.b12, e1000.b12),
+                   "Varianza"= c(v50.b12, v100.b12, v500.b12, v1000.b12),
+                   "Sesgo"= c(s50.b12, s100.b12, s500.b12, s1000.b12))
+
+print(b1.p)
+
+```
+
+
+```{r}
+p2.50 = ggplot(betas_pobl) + 
+  geom_histogram(aes(betas_pobl[,1],y=..density..), col="#103c57", fill="#3278a2", bins = 30) +
+  stat_function(fun = dnorm, args = list(mean=mean(betas_pobl[,1]), sd=sd(betas_pobl[,1])),
+                geom = "line", color="#9999ff", size=1) +
+  ylab("Densidad (n=50)") + ggtitle("Distribución Beta 1 (n=50)") +xlab(beta1) + 
+  theme_bw()
+
+p2.50 <- ggplotly(p2.50)
+```
+
+```{r}
+p2.100 = ggplot(betas_pobl) + 
+  geom_histogram(aes(betas_pobl[,2],y=..density..), col="#103c57", fill="#3278a2", bins = 30) +
+  stat_function(fun = dnorm, args = list(mean=mean(betas_pobl[,2]), sd=sd(betas_pobl[,2])),
+                geom = "line", color="#9999ff", size=1) +
+  ylab("Densidad (n=100)") + ggtitle("Distribución Beta 1 (n=100)") +xlab(beta1) +
+  theme_bw()
+
+p2.100 <- ggplotly(p2.100)
+```
+
+```{r}
+p2.500 = ggplot(betas_pobl) + 
+  geom_histogram(aes(betas_pobl[,3],y=..density..), col="#103c57", fill="#3278a2", bins = 30) +
+  stat_function(fun = dnorm, args = list(mean=mean(betas_pobl[,3]), sd=sd(betas_pobl[,3])),
+                geom = "line", color="#9999ff", size=1) +
+  ylab("Densidad (n=500)") + ggtitle("Distribución Beta 1 (n=500)") +xlab(beta1) +
+  theme_bw()
+
+p2.500 <- ggplotly(p2.500)
+```
+
+```{r}
+p2.1000 = ggplot(betas_pobl) + 
+  geom_histogram(aes(betas_pobl[,4],y=..density..), col="#103c57", fill="#3278a2",  bins = 30) +
+  stat_function(fun = dnorm, args = list(mean=mean(betas_pobl[,4]), sd=sd(betas_pobl[,4])),
+                geom = "line", color="#9999ff", size=1) +
+  ylab("Densidad (n=1000)") + ggtitle("Distribución Beta 1") +xlab(beta1) +
+  theme_bw()
+
+p2.1000 <- ggplotly(p2.1000)
+
+```
+
+```{r fig.asp=0.5, fig.height=15, fig.width=10}
+g2<- subplot(p2.50,p2.100,p2.500,p2.1000, nrows = 2, margin = 0.12, heights = c(0.5, 0.5), titleX=TRUE, titleY = TRUE)
+g2
+```
+
+
+Se puede observar que al incluir la variable omitida con su respectiva distribución, los valores de b1 se acercan más a su valor verdadero 2,5. Esto implica que los sesgos son más pequeños, la esperanza de b1 estimado para cada tamaño muestral se acercan al verdadero valor de b1. En los gráficos este comportamiento también es observable, en el punto de la media poblacional 2.5. Dicho lo anterior, podemos demostrar la hipótesis planteada anteriormente, el sesgo tiende a desaparecer al incluir la variable omitida.
+
